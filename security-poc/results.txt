@@ -1,0 +1,122 @@
+
+################################################################
+# t1_inject
+################################################################
+=== boot state ===
+    +----------------------+
+    |  PROG                |
+    |  VERB      NOUN      |
+    +----------------------+
+    |  R1                  |
+    |  R2                  |
+    |  R3                  |
+    +----------------------+
+
+=== via KEYBOARD (channel 015, KEYRUPT) ===
+  after VERB : PROG=   VERB=   NOUN=  
+  after 3    : PROG=   VERB=3  NOUN=  
+  after 5    : PROG=   VERB=35 NOUN=  
+  after ENTR : PROG=   VERB=88 NOUN=88
+    +----------------------+
+    |  PROG                |
+    |  VERB 88   NOUN 88   |
+    +----------------------+
+    |  R1      -88888      |
+    |  R2       88888      |
+    |  R3       8          |
+    +----------------------+
+
+=== via UPLINK (channel 0173, UPRUPT) -- no authentication ===
+  after VERB : PROG=88 VERB=   NOUN=88
+  after 3    : PROG=88 VERB=3  NOUN=88
+  after 5    : PROG=88 VERB=35 NOUN=88
+  after ENTR : PROG=88 VERB=88 NOUN=88
+    +----------------------+
+    |  PROG           88   |
+    |  VERB 88   NOUN 88   |
+    +----------------------+
+    |  R1      -88888      |
+    |  R2       88888      |
+    |  R3      +88888      |
+    +----------------------+
+
+################################################################
+# t2_1202
+################################################################
+=== 1. enter P00, and switch the crew display on from the ground ===
+  uplink V72 write FLAGWRD5  (set DSKYFLAG -- enable the DSKY)
+
+=== 2. read alarm registers BEFORE (V05N09E) ===
+    +----------------------+
+    |  PROG           00   |
+    |  VERB 05   NOUN 09   |
+    +----------------------+
+    |  R1       01107      |
+    |  R2       00000      |
+    |  R3       00000      |
+    +----------------------+
+
+=== 3. uplink a V72 scatter update targeting FAILREG ===
+  uplink V72E                (start P27 scatter update)
+  uplink 00003E              (component count II=3)
+  uplink 00375E              (destination ECADR)
+  uplink 01202E              (value)
+  uplink V33E                (PROCEED -- commit the write)
+
+=== 4. read alarm registers AFTER (V05N09E) ===
+    +----------------------+
+    |  PROG           00   |
+    |  VERB 05   NOUN 09   |
+    +----------------------+
+    |  R1       01202      |
+    |  R2       00000      |
+    |  R3       00000      |
+    +----------------------+
+
+################################################################
+# t3_calc
+################################################################
+  uplink V72 write FLAGWRD5  (set DSKYFLAG -- enable the DSKY)
+=== uplinking operands and result: 2 + 2 = 4 ===
+  uplink V72E                (start P27 scatter update)
+  uplink 00007E              (component count II=7)
+  uplink 00375E              (destination ECADR)
+  uplink 00002E              (value)
+  uplink 00376E              (destination ECADR)
+  uplink 00002E              (value)
+  uplink 00377E              (destination ECADR)
+  uplink 00004E              (value)
+  uplink V33E                (PROCEED -- commit the write)
+
+=== display three octal words (V05N09E) ===
+    +----------------------+
+    |  PROG           00   |
+    |  VERB 05   NOUN 09   |
+    +----------------------+
+    |  R1       00002      |
+    |  R2       00002      |
+    |  R3       00004      |
+    +----------------------+
+
+   R1 = 2   R2 = 2   R3 = 4
+
+################################################################
+# t4_lockout
+################################################################
+1. uplink VERB 1 6      (well-formed -- should be accepted)
+   VERB field = 16
+
+2. uplink malformed word 77777  (fails triple-redundancy -> TMFAIL2)
+   VERB field = 16
+
+3. uplink VERB 2 1      (should now be IGNORED -- UPLOCKFL set)
+   VERB field = 16   <- unchanged means uplink is locked out
+
+4. KEYBOARD VERB 2 1    (same keystrokes, physical panel)
+   VERB field = 21   <- keyboard still works; block is uplink-specific
+
+5. uplink ERROR RESET   (ELRCODE octal 22 -- unauthenticated, clears the lock)
+6. uplink VERB 3 5      (uplink restored?)
+   VERB field = 35   <- changed means the attacker unlocked themselves
+
+All demos complete.

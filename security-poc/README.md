@@ -93,6 +93,11 @@ The executive is never loaded and no core sets are exhausted. The alarm is
 pure fabrication.
 
 ```
+=== 2. read alarm registers BEFORE (V05N09E) ===
+    |  R1       01107      |
+    |  R2       00000      |
+    |  R3       00000      |
+
 === 3. uplink a V72 scatter update targeting FAILREG ===
   uplink V72E                (start P27 scatter update)
   uplink 00003E              (component count II=3)
@@ -101,9 +106,31 @@ pure fabrication.
   uplink V33E                (PROCEED -- commit the write)
 
 === 4. read alarm registers AFTER (V05N09E) ===
-    |  VERB 05   NOUN 09   |
     |  R1       01202      |
+    |  R2       00000      |
+    |  R3       00000      |
 ```
+
+The `01107` in the "before" read is not noise, and it is not ours — it is the
+computer catching its own cold start. Alarm 1107 is PHASE TABLE ERROR
+(`FRESH_START_AND_RESTART.agc:133, 468`). Every restart phase is stored twice,
+once direct and once complemented, and `GOPROG3` XORs each pair and demands
+`-0` before it will resume anything:
+
+```
+DCA   -PHASE1     # COMPLEMENT INTO A, DIRECT INTO L.
+RXOR  LCHAN       # RESULT MUST BE -0 FOR AGREEMENT.
+CCS   A
+TCF   PTBAD       # RESTART FAILURE.
+```
+
+On truly cold erasable both copies are zero, `0 XOR 0` is `+0` rather than
+`-0`, the check fails, and the AGC logs 1107 and drops to a full fresh start
+rather than resuming from recovery metadata it cannot trust.
+
+So the honest reading of this demo is sharper than a clean-zero baseline would
+have been: R1 held a **real, self-detected** alarm, and the uplink overwrote it
+with a **fabricated** one. Nothing distinguishes the two on the display.
 
 ### 3. The lockout is a DoS vector and unlocks itself — `t4_lockout.py`
 

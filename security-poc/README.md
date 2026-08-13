@@ -148,28 +148,55 @@ signed 5-digit registers, every value delivered by unauthenticated radio:
     +----------------------+
 ```
 
-## Known issue: cold-start reliability
+### 4. The uplink executes without lighting the display
 
-The exploits themselves are demonstrated and real — the V72 write, the
-fabricated 1202, the calculator, and the lockout behaviour were all observed
-directly. But the demo scripts are **not yet reliable from a cold boot**.
+Chasing an apparent cold-boot failure turned up a structural asymmetry in the
+flight software.
 
-Runs against a warm computer succeed consistently. Runs that start from a
-genuinely cold fresh start (`--no-resume`, empty erasable) sometimes produce
-a completely blank display, as if the uplink characters were never received —
-including the very first `V37E 00E`. `t1_inject.py`, which drives the keyboard
-before the uplink, does not show this; the failures so far are all in scripts
-whose first action is an uplink.
+From a genuinely cold start (`--no-resume`, erasable all zero), uplinked
+commands produced *no display output at all* — which looks identical to the
+uplink being rejected. It wasn't. The cause is `DSKYFLAG`, flag 075, bit 15 of
+FLAGWRD5, defined at `ERASABLE_ASSIGNMENTS.agc:858` as **"DISPLAYS SENT TO
+[DSKY] / NO DISPLAYS TO DSKY"**.
 
-The working hypothesis is a sequencing problem in the harness rather than a
-property of the flight software: uplink words are being sent before the AGC's
-fresh start has finished bringing up the display system, and are silently
-dropped. `BOOT_SETTLE` was raised to 10s for this reason and did not fully fix
-it. This is under investigation and the scripts should not be treated as
-push-button reproducible until it is resolved.
+`KEYRUPT1` reaches `ACCEPTUP` *via* `KEYCOM`, which sets that flag on every
+keypress:
 
-Stated plainly so nobody mistakes a green run for a verified one: **a blank
-display means the harness failed to deliver, not that the exploit was blocked.**
+```
+KEYCOM      TS   RUPTREG4
+            CS   FLAGWRD5
+            MASK BIT15          <-- set DSKYFLAG
+            ADS  FLAGWRD5
+ACCEPTUP    CAF  CHRPRIO
+```
+
+`UPRUPT` jumps **straight to `ACCEPTUP`, skipping `KEYCOM`**. Only a physical
+keypress ever enables the display. Uplinked commands execute regardless.
+
+Proof — cold boot, uplink only, no key ever pressed on the panel:
+
+```
+--- UPLINK ONLY: P00, then V72 write 01202 -> FAILREG (0375) ---
+display after uplink:
+    |  PROG                |          <- blank; DSKYFLAG clear
+    |  R1                  |
+
+--- now ONE KEYBOARD sequence: V05N09E ---
+    |  R1       01202      |          <- the write had landed all along
+    |  R2       00000      |
+    |  R3       00000      |
+```
+
+`DSKYFLAG` lives in FLAGWRD5 at ECADR `0101`, which the V72 primitive reaches,
+so the attacker can simply switch the display on themselves. `enable_display()`
+in `p27.py` does this, and it is what makes these demos reproducible from cold
+with zero physical interaction.
+
+**This should not be oversold.** In flight the crew used the DSKY constantly,
+so `DSKYFLAG` was effectively always set and none of this would have been
+observable. It is a cold-start artifact, not a stealth channel Apollo shipped.
+What is genuinely there is the asymmetry: the uplink path has no reason to
+touch the display-enable flag, and doesn't.
 
 ## What this does and does not show
 

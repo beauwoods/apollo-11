@@ -17,6 +17,27 @@ There is no allow-list and no range check on the destination.
 
 DIGITS = ["0", "1", "2", "3", "4", "5", "6", "7"]
 
+# FLAGWRD5 = STATE +5.  Bit 15 is DSKYFLAG, defined in
+# ERASABLE_ASSIGNMENTS.agc:858 as "DISPLAYS SENT TO [DSKY] / NO DISPLAYS TO DSKY".
+#
+# KEYRUPT1 passes through KEYCOM, which sets this flag on every keypress:
+#
+#     KEYCOM  TS   RUPTREG4
+#             CS   FLAGWRD5
+#             MASK BIT15          <-- set DSKYFLAG
+#             ADS  FLAGWRD5
+#
+# UPRUPT jumps straight to ACCEPTUP and skips KEYCOM, so an uplinked
+# keystroke never sets it.  On a cold computer (erasable all zero) the flag
+# is clear, uplinked commands execute normally, and nothing reaches the
+# display -- which looks exactly like the uplink not working.
+#
+# In flight this would rarely matter: the crew used the DSKY constantly, so
+# DSKYFLAG was effectively always set.  It matters here because a cold start
+# is the honest baseline for a demo.
+FLAGWRD5 = 0o0101
+DSKYFLAG = 0o40000
+
 
 def octal_keys(value, width=5):
     """Render a value as octal DSKY keystrokes."""
@@ -67,3 +88,15 @@ def v72_write(agc, pairs, settle=0.35, log=print):
 
     log(f"  uplink V33E                (PROCEED -- commit the write)")
     verb(agc, 33, settle)
+
+
+def enable_display(agc, settle=0.35, log=print):
+    """Turn the crew's display on, from the ground.
+
+    Sets DSKYFLAG by writing FLAGWRD5 through the same V72 primitive.  Safe
+    to write wholesale only because this runs against cold erasable, where
+    the other FLAGWRD5 bits are already zero; against a warm computer this
+    would clobber them.
+    """
+    log("  uplink V72 write FLAGWRD5  (set DSKYFLAG -- enable the DSKY)")
+    v72_write(agc, [(FLAGWRD5, DSKYFLAG)], settle, log=lambda s: None)

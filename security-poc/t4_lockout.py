@@ -16,6 +16,7 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 BOOT_SETTLE = 10.0   # AGC fresh start must complete before it accepts input
 from agc_link import AGC, encode_uplink_word
+from p27 import verb, load, enable_display
 
 BAD_WORD = 0o77777     # lo=37 mid=37 hi=37; mid should be ~37=00 -> fails CCC check
 
@@ -24,6 +25,14 @@ def vfield(agc):
 
 agc = AGC()
 agc.pump(BOOT_SETTLE)
+
+# On cold erasable DSKYFLAG is clear, so nothing reaches the display and every
+# step below would read blank whether or not the uplink worked.  Turn the
+# display on first -- over the radio, like everything else here.
+verb(agc, 37); load(agc, 0)
+agc.pump(1.5)
+enable_display(agc, log=lambda s: None)
+agc.pump(1.5)
 
 print("1. uplink VERB 1 6      (well-formed -- should be accepted)")
 for k in ("VERB", "1", "6"):

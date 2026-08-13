@@ -1,0 +1,519 @@
+<title>DSKY Uplink Console</title>
+<style>
+  :root {
+    --bg: #E6E5DE;
+    --surface: #F4F3ED;
+    --surface-2: #DEDDD4;
+    --ink: #191C1A;
+    --muted: #676C68;
+    --hair: #C6C5BB;
+    --radio: #B33A2B;
+    --radio-soft: #E8D5D0;
+    --key: #2E6F55;
+
+    /* The DSKY is a physical object: its colours are the same in either theme,
+       the way a photograph of it would be. */
+    --panel: #B9B7AE;
+    --panel-hi: #C9C7BE;
+    --panel-lo: #9E9C93;
+    --bezel: #1C1E1D;
+    --seg-on: #8FF0D0;
+    --seg-off: #26332F;
+    --lamp-off: #4E5049;
+    --lamp-white: #F2EFE4;
+    --lamp-amber: #F0B33C;
+
+    --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+    --sans: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #111513;
+      --surface: #191E1B;
+      --surface-2: #222825;
+      --ink: #E7EAE6;
+      --muted: #949A95;
+      --hair: #2E3531;
+      --radio: #E8705C;
+      --radio-soft: #3A211C;
+      --key: #63C39A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #111513;
+    --surface: #191E1B;
+    --surface-2: #222825;
+    --ink: #E7EAE6;
+    --muted: #949A95;
+    --hair: #2E3531;
+    --radio: #E8705C;
+    --radio-soft: #3A211C;
+    --key: #63C39A;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 72px; }
+
+  header { margin-bottom: 36px; }
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: .16em;
+    text-transform: uppercase;
+    color: var(--radio);
+    margin: 0 0 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 4.4vw, 44px);
+    line-height: 1.1;
+    margin: 0 0 14px;
+    letter-spacing: -.02em;
+    text-wrap: balance;
+    font-weight: 620;
+  }
+  .lede { max-width: 64ch; color: var(--muted); margin: 0; font-size: 16.5px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  .layout { display: grid; grid-template-columns: minmax(0,420px) minmax(0,1fr); gap: 32px; align-items: start; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+
+  /* ---------- the panel ---------- */
+  .dsky {
+    background: linear-gradient(168deg, var(--panel-hi), var(--panel) 42%, var(--panel-lo));
+    border-radius: 10px;
+    padding: 16px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.5) inset, 0 18px 40px -18px rgba(0,0,0,.55);
+    display: flex; flex-direction: column; gap: 14px;
+    position: sticky; top: 24px;
+  }
+  @media (max-width: 900px) { .dsky { position: static; } }
+  .dsky-top { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+  .lampgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; align-content: start; }
+  .lamp {
+    background: #3A3C36;
+    border: 1px solid #2A2C27;
+    border-radius: 3px;
+    padding: 6px 3px;
+    text-align: center;
+    font-family: var(--sans);
+    font-size: 8.5px;
+    font-weight: 700;
+    letter-spacing: .05em;
+    line-height: 1.15;
+    color: var(--lamp-off);
+    text-transform: uppercase;
+    min-height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    transition: color .16s, background .16s, box-shadow .16s;
+  }
+  .lamp.on { color: var(--lamp-white); background: #55574E; box-shadow: 0 0 10px rgba(242,239,228,.28); }
+  .lamp.on.amber { color: #1E1A10; background: var(--lamp-amber); box-shadow: 0 0 12px rgba(240,179,60,.45); }
+
+  .readout { background: var(--bezel); border-radius: 5px; padding: 10px 9px; display: flex; flex-direction: column; gap: 7px; }
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .rlabel {
+    font-family: var(--sans); font-size: 9px; font-weight: 700;
+    letter-spacing: .11em; color: #8A8F88; text-transform: uppercase;
+  }
+  .vn { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .cell { display: flex; flex-direction: column; gap: 3px; }
+  .digits { display: flex; align-items: center; gap: 2px; }
+  .sign { width: 9px; font-family: var(--mono); font-size: 15px; color: var(--seg-on); text-align: center; }
+  .sign.blank { color: var(--seg-off); }
+  hr.sep { border: 0; border-top: 1px solid #333834; margin: 1px 0; }
+
+  /* ---------- keyboard ---------- */
+  .keys { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+  .k {
+    background: linear-gradient(180deg, #4A4C46, #35372F);
+    color: #E6E3D8; border: 1px solid #2A2C26; border-radius: 4px;
+    font-family: var(--sans); font-size: 9px; font-weight: 700; letter-spacing: .03em;
+    padding: 8px 2px; text-align: center; text-transform: uppercase;
+    transition: background .1s, box-shadow .1s, transform .1s;
+  }
+  .k.lit { background: linear-gradient(180deg, #7FBF9F, #4E9575); color: #0E1A14; box-shadow: 0 0 12px rgba(127,191,159,.5); transform: translateY(1px); }
+
+  /* ---------- right column ---------- */
+  .panelcard { background: var(--surface); border: 1px solid var(--hair); border-radius: 10px; padding: 18px 20px; }
+  .panelcard + .panelcard { margin-top: 18px; }
+  h2 { font-size: 12px; letter-spacing: .13em; text-transform: uppercase; margin: 0 0 14px; color: var(--muted); font-family: var(--mono); font-weight: 600; }
+
+  .scen { display: flex; flex-wrap: wrap; gap: 8px; }
+  button.s {
+    font-family: var(--sans); font-size: 13px; font-weight: 550;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--hair); border-radius: 7px;
+    padding: 9px 14px; cursor: pointer; transition: background .14s, border-color .14s;
+  }
+  button.s:hover { border-color: var(--radio); }
+  button.s[aria-pressed="true"] { background: var(--radio); border-color: var(--radio); color: #fff; }
+  button.s:focus-visible { outline: 2px solid var(--radio); outline-offset: 2px; }
+
+  .transport { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
+  button.t {
+    font-family: var(--mono); font-size: 12px;
+    background: transparent; color: var(--ink);
+    border: 1px solid var(--hair); border-radius: 6px; padding: 6px 12px; cursor: pointer;
+  }
+  button.t:hover { border-color: var(--radio); }
+  button.t:disabled { opacity: .4; cursor: default; }
+  button.t:focus-visible { outline: 2px solid var(--radio); outline-offset: 2px; }
+  .counter { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+  .log { font-family: var(--mono); font-size: 12.5px; max-height: 340px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+  .le { display: grid; grid-template-columns: 74px 1fr; gap: 10px; padding: 4px 6px; border-radius: 4px; align-items: baseline; }
+  .le .src { font-size: 10px; letter-spacing: .07em; text-transform: uppercase; font-weight: 700; }
+  .le.radio { background: var(--radio-soft); }
+  .le.radio .src { color: var(--radio); }
+  .le.kbd .src { color: var(--key); }
+  .le.note { opacity: .8; }
+  .le.note .src { color: var(--muted); }
+  .le.cur { outline: 1px solid var(--radio); }
+
+  .word { display: flex; gap: 0; margin-top: 12px; border-radius: 6px; overflow: hidden; border: 1px solid var(--hair); }
+  .wf { flex: 1; padding: 9px 6px; text-align: center; font-family: var(--mono); }
+  .wf .t { font-size: 9.5px; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 3px; }
+  .wf .v { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .wf.a { background: var(--surface-2); }
+  .wf.b { background: var(--radio-soft); }
+  .caption { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+
+  .try { display: flex; gap: 8px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+  .try input {
+    font-family: var(--mono); font-size: 14px; padding: 8px 10px;
+    background: var(--surface-2); color: var(--ink);
+    border: 1px solid var(--hair); border-radius: 6px; width: 150px;
+  }
+  .try input:focus-visible { outline: 2px solid var(--radio); outline-offset: 1px; }
+  .miniwrap { background: var(--bezel); border-radius: 5px; padding: 9px 10px; margin-top: 10px; display: inline-flex; gap: 3px; }
+
+  footer { margin-top: 40px; padding-top: 22px; border-top: 1px solid var(--hair); color: var(--muted); font-size: 13px; max-width: 74ch; }
+  footer p { margin: 0 0 10px; }
+  code { font-family: var(--mono); font-size: .92em; background: var(--surface-2); padding: 1px 5px; border-radius: 3px; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <p class="eyebrow">Comanche055 · Apollo 11 command module</p>
+    <h1>What the crew would have seen</h1>
+    <p class="lede">A simulated DSKY replaying four exploits run against the real Apollo 11 flight software in the Virtual AGC emulator. Every value shown was <strong>captured from an actual run</strong>, not staged. Green entries are crew keystrokes; red entries are unauthenticated radio transmissions.</p>
+  </header>
+
+  <div class="layout">
+    <!-- ============ PANEL ============ -->
+    <div class="dsky">
+      <div class="dsky-top">
+        <div class="lampgrid" id="lamps"></div>
+        <div class="readout">
+          <div class="row"><span class="rlabel">Comp Acty</span><span class="rlabel" id="ca">○</span></div>
+          <div class="row"><span class="rlabel">Prog</span><span class="digits" id="d-prog"></span></div>
+          <hr class="sep">
+          <div class="vn">
+            <div class="cell"><span class="rlabel">Verb</span><span class="digits" id="d-verb"></span></div>
+            <div class="cell"><span class="rlabel">Noun</span><span class="digits" id="d-noun"></span></div>
+          </div>
+          <hr class="sep">
+          <div class="cell"><span class="rlabel">R1</span><span class="digits" id="d-r1"></span></div>
+          <div class="cell"><span class="rlabel">R2</span><span class="digits" id="d-r2"></span></div>
+          <div class="cell"><span class="rlabel">R3</span><span class="digits" id="d-r3"></span></div>
+        </div>
+      </div>
+      <div class="keys" id="keys"></div>
+    </div>
+
+    <!-- ============ CONTROLS ============ -->
+    <div>
+      <div class="panelcard">
+        <h2>Captured runs</h2>
+        <div class="scen" id="scen"></div>
+        <div class="transport">
+          <button class="t" id="play">▶ Play</button>
+          <button class="t" id="step">Step ›</button>
+          <button class="t" id="reset">Reset</button>
+          <span class="counter" id="count">—</span>
+        </div>
+        <p class="caption" id="desc"></p>
+      </div>
+
+      <div class="panelcard">
+        <h2>Uplink word</h2>
+        <div class="word">
+          <div class="wf a"><span class="t">bits 15–11</span><span class="v" id="w-hi">·····</span></div>
+          <div class="wf b"><span class="t">bits 10–6 (~char)</span><span class="v" id="w-mid">·····</span></div>
+          <div class="wf a"><span class="t">bits 5–1</span><span class="v" id="w-lo">·····</span></div>
+        </div>
+        <p class="caption">The AGC's only check is that the outer fields match and the middle one is their complement — a repetition code against radio noise. No key, no MAC, and the layout is published. <code>KEYRUPT_UPRUPT.agc:75-90</code></p>
+      </div>
+
+      <div class="panelcard">
+        <h2>Transmission log</h2>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="panelcard">
+        <h2>Why it can't draw a calculator</h2>
+        <p class="caption" style="margin:0 0 12px">The AGC never addresses segments. It emits a 5-bit code to a relay decoder whose entire alphabet is blank plus ten digits. Type anything — letters simply have no code to send.</p>
+        <div class="try">
+          <input id="try" value="CALC" maxlength="7" aria-label="Text to attempt to display">
+          <span class="caption" id="tryout"></span>
+        </div>
+        <div class="miniwrap" id="d-try"></div>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    <p><strong>Scope.</strong> This shows that the <em>software</em> accepted unauthenticated commands and never validated the destination of an uplinked memory write. It does not show the real system was exploitable: the emulator has no RF model, and the actual defences were Deep Space Network antenna directionality, link budget, and the crew's UP TELEMETRY switch — physical, not cryptographic.</p>
+    <p><strong>Alarm 1202</strong> shown here is fabricated — written straight into <code>FAILREG</code> from the ground. The executive was never loaded and no core sets were exhausted. <strong>Alarm 1107</strong>, by contrast, is real: the computer catching its own cold start when the phase-table complement check fails.</p>
+    <p>Historical research. No AGC has flown since 1972 and the source is public domain.</p>
+  </footer>
+</div>
+
+<script>
+"use strict";
+
+/* Relay codes -> glyph.  Comanche055/PINBALL_GAME_BUTTONS_AND_LIGHTS.agc:378.
+   These eleven are the complete renderable alphabet of the hardware. */
+const RELAY = { 0o00:" ", 0o25:"0", 0o03:"1", 0o31:"2", 0o33:"3", 0o17:"4",
+                0o36:"5", 0o34:"6", 0o23:"7", 0o35:"8", 0o37:"9" };
+const CODE_OF = {}; for (const c in RELAY) CODE_OF[RELAY[c]] = Number(c);
+
+/* Seven-segment geometry: a b c d e f g */
+const SEG = { "0":"abcdef","1":"bc","2":"abdeg","3":"abcdg","4":"bcfg",
+              "5":"acdfg","6":"acdefg","7":"abc","8":"abcdefg","9":"abcdfg"," ":"" };
+const GEO = {
+  a:"M4,2 L20,2 L17,5.5 L7,5.5 Z",  b:"M21,3.5 L21,17 L18,14.2 L18,6.5 Z",
+  c:"M21,19 L21,32.5 L18,29.5 L18,21.8 Z", d:"M4,34 L20,34 L17,30.5 L7,30.5 Z",
+  e:"M3,19 L6,21.8 L6,29.5 L3,32.5 Z", f:"M3,3.5 L6,6.5 L6,14.2 L3,17 Z",
+  g:"M4.6,18 L7,15.8 L17,15.8 L19.4,18 L17,20.2 L7,20.2 Z"
+};
+
+function segEl() {
+  const s = document.createElementNS("http://www.w3.org/2000/svg","svg");
+  s.setAttribute("viewBox","0 0 24 36"); s.setAttribute("width","14"); s.setAttribute("height","21");
+  for (const k of "abcdefg") {
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", GEO[k]); p.dataset.seg = k; s.appendChild(p);
+  }
+  return s;
+}
+function paint(svg, ch) {
+  const on = SEG[ch] !== undefined ? SEG[ch] : "";   // unknown -> blank, like the decoder
+  svg.querySelectorAll("path").forEach(p => {
+    p.setAttribute("fill", on.includes(p.dataset.seg) ? "var(--seg-on)" : "var(--seg-off)");
+  });
+}
+function makeField(host, n, withSign) {
+  host.innerHTML = "";
+  if (withSign) { const s = document.createElement("span"); s.className = "sign blank"; s.textContent = "+"; host.appendChild(s); }
+  for (let i = 0; i < n; i++) { const s = segEl(); host.appendChild(s); }
+}
+function setField(host, text, sign) {
+  const svgs = host.querySelectorAll("svg");
+  const t = (text || "").padStart(svgs.length, " ").slice(-svgs.length);
+  svgs.forEach((s, i) => paint(s, t[i]));
+  const sg = host.querySelector(".sign");
+  if (sg) { sg.textContent = sign === "-" ? "−" : "+"; sg.className = "sign" + (sign ? "" : " blank"); }
+}
+
+const LAMPS = ["Uplink Acty","Temp","No Att","Gimbal Lock","Stby","Prog","Key Rel","Restart","Opr Err","Tracker"];
+const AMBER = new Set(["Prog","Gimbal Lock","Temp","Restart"]);
+const KEYS  = ["Verb","Noun","+","−","7","8","9","4","5","6","1","2","3","Clr","0","Pro","Key Rel","Entr","Rset","—"];
+
+const lampEls = {}, keyEls = {};
+{
+  const g = document.getElementById("lamps");
+  LAMPS.forEach(n => { const d = document.createElement("div");
+    d.className = "lamp" + (AMBER.has(n) ? " amber" : ""); d.textContent = n; g.appendChild(d); lampEls[n] = d; });
+  const k = document.getElementById("keys");
+  KEYS.forEach(n => { const d = document.createElement("div"); d.className = "k"; d.textContent = n; k.appendChild(d); keyEls[n] = d; });
+}
+makeField(document.getElementById("d-prog"), 2, false);
+makeField(document.getElementById("d-verb"), 2, false);
+makeField(document.getElementById("d-noun"), 2, false);
+["d-r1","d-r2","d-r3"].forEach(id => makeField(document.getElementById(id), 5, true));
+makeField(document.getElementById("d-try"), 7, false);
+
+/* ---------- display state ---------- */
+const BLANK = { prog:"", verb:"", noun:"", r1:"", r2:"", r3:"", s1:"", s2:"", s3:"", lamps:[], comp:false };
+let disp = { ...BLANK };
+function render() {
+  setField(document.getElementById("d-prog"), disp.prog);
+  setField(document.getElementById("d-verb"), disp.verb);
+  setField(document.getElementById("d-noun"), disp.noun);
+  setField(document.getElementById("d-r1"), disp.r1, disp.s1);
+  setField(document.getElementById("d-r2"), disp.r2, disp.s2);
+  setField(document.getElementById("d-r3"), disp.r3, disp.s3);
+  Object.entries(lampEls).forEach(([n, el]) => el.classList.toggle("on", disp.lamps.includes(n)));
+  document.getElementById("ca").textContent = disp.comp ? "●" : "○";
+}
+
+/* ---------- uplink word encoder (the real thing) ---------- */
+const KEYCODE = { "0":16,"1":1,"2":2,"3":3,"4":4,"5":5,"6":6,"7":7,"8":8,"9":9,
+                  "Verb":0o21,"Noun":0o37,"Entr":0o34,"Rset":0o22,"Key Rel":0o31,"Clr":0o36,"+":0o32,"−":0o33 };
+const oct5 = n => n.toString(8).padStart(5,"0");
+const oct2 = n => n.toString(8).padStart(2,"0");
+function showWord(code) {
+  const hi = document.getElementById("w-hi"), mid = document.getElementById("w-mid"), lo = document.getElementById("w-lo");
+  if (code === null) { hi.textContent = mid.textContent = lo.textContent = "·····"; return; }
+  const c = code & 0o37, m = (~c) & 0o37;
+  hi.textContent = oct2(c); mid.textContent = oct2(m); lo.textContent = oct2(c);
+}
+
+/* ---------- scenarios: every value below is captured output ---------- */
+const D = (o) => ({ ...BLANK, ...o });
+const SCEN = {
+  inject: {
+    name: "1 · Radio ≡ keyboard",
+    desc: "The identical V35E lamp test, driven first from the panel and then by radio. The computer cannot tell them apart — UPRUPT hands off to ACCEPTUP, the same handler the keyboard reaches.",
+    steps: [
+      { src:"note", txt:"Cold start. Display dark.", d:D({}) },
+      { src:"kbd", key:"Verb", txt:"VERB", d:D({comp:true}) },
+      { src:"kbd", key:"3", txt:"3", d:D({verb:"3", comp:true}) },
+      { src:"kbd", key:"5", txt:"5", d:D({verb:"35", comp:true}) },
+      { src:"kbd", key:"Entr", txt:"ENTR — lamp test", d:D({prog:"88",verb:"88",noun:"88",r1:"88888",s1:"-",r2:"88888",s2:"+",r3:"88888",s3:"+",comp:true,lamps:LAMPS}) },
+      { src:"note", txt:"Now the same keys, transmitted.", d:D({comp:true}) },
+      { src:"radio", key:"Verb", txt:"VERB", d:D({comp:true}) },
+      { src:"radio", key:"3", txt:"3", d:D({verb:"3", comp:true}) },
+      { src:"radio", key:"5", txt:"5", d:D({verb:"35", comp:true}) },
+      { src:"radio", key:"Entr", txt:"ENTR — identical result", d:D({prog:"88",verb:"88",noun:"88",r1:"88888",s1:"-",r2:"88888",s2:"+",r3:"88888",s3:"+",comp:true,lamps:LAMPS}) }
+    ]
+  },
+  alarm: {
+    name: "2 · Fabricated 1202",
+    desc: "Pure radio — no key is ever pressed. The attacker enters P00, switches the crew's display on by writing DSKYFLAG, reads the alarm registers, then writes 01202 into FAILREG and reads it back with V05N09E: the crew's own alarm procedure.",
+    steps: [
+      { src:"note", txt:"Cold start. DSKYFLAG clear — display dark.", d:D({}) },
+      { src:"radio", txt:"V37E 00E — enter P00", d:D({}) },
+      { src:"radio", txt:"V72 write FLAGWRD5 ← DSKYFLAG", d:D({}) },
+      { src:"note", txt:"Display enabled from the ground.", d:D({prog:"00",comp:true}) },
+      { src:"radio", txt:"V05N09E — read alarm registers", d:D({prog:"00",verb:"05",noun:"09",r1:"01107",s1:"+",r2:"00000",s2:"+",r3:"00000",s3:"+",comp:true,lamps:["Prog"]}) },
+      { src:"note", txt:"01107 = PHASE TABLE ERROR. Real, self-detected.", d:D({prog:"00",verb:"05",noun:"09",r1:"01107",s1:"+",r2:"00000",s2:"+",r3:"00000",s3:"+",comp:true,lamps:["Prog"]}) },
+      { src:"radio", txt:"V72E · II=00003 · ECADR 00375 · 01202 · V33E", d:D({prog:"00",verb:"21",noun:"01",comp:true,lamps:["Prog","Uplink Acty"]}) },
+      { src:"radio", txt:"V05N09E — read them again", d:D({prog:"00",verb:"05",noun:"09",r1:"01202",s1:"+",r2:"00000",s2:"+",r3:"00000",s3:"+",comp:true,lamps:["Prog"]}) },
+      { src:"note", txt:"01202 is fabricated. Nothing distinguishes it from 01107.", d:D({prog:"00",verb:"05",noun:"09",r1:"01202",s1:"+",r2:"00000",s2:"+",r3:"00000",s3:"+",comp:true,lamps:["Prog"]}) }
+    ]
+  },
+  calc: {
+    name: "3 · Popping calc",
+    desc: "The display can't be drawn on, so the computer is made to be a calculator instead: three signed five-digit registers holding operands and result. Every value arrives by radio, including the flag that turns the display on.",
+    steps: [
+      { src:"radio", txt:"V37E 00E — enter P00", d:D({}) },
+      { src:"radio", txt:"V72 write FLAGWRD5 ← DSKYFLAG", d:D({prog:"00",comp:true}) },
+      { src:"radio", txt:"V72E · II=00007 · three address/value pairs", d:D({prog:"00",verb:"21",noun:"01",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", txt:"00375 ← 2", d:D({prog:"00",verb:"21",noun:"01",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", txt:"00376 ← 2", d:D({prog:"00",verb:"21",noun:"01",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", txt:"00377 ← 4", d:D({prog:"00",verb:"21",noun:"01",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", txt:"V33E — commit", d:D({prog:"00",comp:true}) },
+      { src:"radio", txt:"V05N09E — 2 + 2 = 4", d:D({prog:"00",verb:"05",noun:"09",r1:"00002",s1:"+",r2:"00002",s2:"+",r3:"00004",s3:"+",comp:true}) }
+    ]
+  },
+  lock: {
+    name: "4 · Lockout & self-unlock",
+    desc: "A malformed word trips TMFAIL2 and sets UPLOCKFL, killing the uplink. The keyboard still works, which is what proves the block is uplink-specific. Then an unauthenticated ERROR RESET clears it — the attacker unlocks themselves.",
+    steps: [
+      { src:"radio", key:"Verb", txt:"VERB 1 6 — accepted", d:D({verb:"16",comp:true}) },
+      { src:"radio", txt:"malformed word 77777 → TMFAIL2", d:D({verb:"16",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"note", txt:"UPLOCKFL set. Uplink now blocked.", d:D({verb:"16",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", key:"Verb", txt:"VERB 2 1 — ignored", d:D({verb:"16",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"kbd", key:"Verb", txt:"VERB 2 1 from the panel — works", d:D({verb:"21",comp:true,lamps:["Uplink Acty"]}) },
+      { src:"radio", key:"Rset", txt:"ERROR RESET (octal 22)", d:D({verb:"21",comp:true}) },
+      { src:"note", txt:"Honoured while locked — UPLOCKFL cleared.", d:D({verb:"21",comp:true}) },
+      { src:"radio", key:"Verb", txt:"VERB 3 5 — uplink restored", d:D({verb:"35",comp:true}) }
+    ]
+  }
+};
+
+/* ---------- player ---------- */
+let cur = "inject", idx = -1, timer = null;
+const logEl = document.getElementById("log");
+
+function buildScenarioButtons() {
+  const host = document.getElementById("scen");
+  Object.entries(SCEN).forEach(([id, s]) => {
+    const b = document.createElement("button");
+    b.className = "s"; b.textContent = s.name; b.setAttribute("aria-pressed", id === cur);
+    b.onclick = () => { cur = id; select(); };
+    host.appendChild(b);
+  });
+}
+function select() {
+  stop();
+  document.querySelectorAll("button.s").forEach((b, i) => b.setAttribute("aria-pressed", Object.keys(SCEN)[i] === cur));
+  document.getElementById("desc").textContent = SCEN[cur].desc;
+  reset();
+}
+function reset() {
+  stop(); idx = -1; disp = { ...BLANK }; render(); showWord(null);
+  Object.values(keyEls).forEach(k => k.classList.remove("lit"));
+  logEl.innerHTML = ""; updateCount();
+}
+function updateCount() {
+  const n = SCEN[cur].steps.length;
+  document.getElementById("count").textContent = (idx + 1) + " / " + n;
+  document.getElementById("step").disabled = idx >= n - 1;
+}
+function step() {
+  const steps = SCEN[cur].steps;
+  if (idx >= steps.length - 1) { stop(); return; }
+  idx++;
+  const s = steps[idx];
+  disp = s.d; render();
+
+  Object.values(keyEls).forEach(k => k.classList.remove("lit"));
+  if (s.key && keyEls[s.key]) keyEls[s.key].classList.add("lit");
+  showWord(s.src === "radio" && s.key && KEYCODE[s.key] !== undefined ? KEYCODE[s.key] : null);
+
+  const row = document.createElement("div");
+  row.className = "le " + s.src + " cur";
+  const label = s.src === "radio" ? "Radio" : s.src === "kbd" ? "Keys" : "—";
+  row.innerHTML = '<span class="src"></span><span class="tx"></span>';
+  row.querySelector(".src").textContent = label;
+  row.querySelector(".tx").textContent = s.txt;
+  logEl.querySelectorAll(".cur").forEach(e => e.classList.remove("cur"));
+  logEl.appendChild(row);
+  logEl.scrollTop = logEl.scrollHeight;
+  updateCount();
+}
+function play() {
+  if (timer) { stop(); return; }
+  if (idx >= SCEN[cur].steps.length - 1) reset();
+  document.getElementById("play").textContent = "⏸ Pause";
+  timer = setInterval(() => { step(); if (idx >= SCEN[cur].steps.length - 1) stop(); }, 1100);
+  step();
+}
+function stop() {
+  if (timer) clearInterval(timer);
+  timer = null;
+  document.getElementById("play").textContent = "▶ Play";
+}
+document.getElementById("play").onclick = play;
+document.getElementById("step").onclick = () => { stop(); step(); };
+document.getElementById("reset").onclick = reset;
+
+/* ---------- the "draw a calculator" demo ---------- */
+const tryIn = document.getElementById("try"), tryOut = document.getElementById("tryout");
+function tryRender() {
+  const raw = tryIn.value.toUpperCase();
+  setField(document.getElementById("d-try"), raw.split("").map(c => RELAY[CODE_OF[c]] !== undefined ? c : " ").join(""));
+  const bad = [...new Set(raw.split("").filter(c => c !== " " && CODE_OF[c] === undefined))];
+  tryOut.textContent = bad.length
+    ? "no relay code for " + bad.map(c => '"' + c + '"').join(", ") + " — sent as blank"
+    : "all characters have relay codes";
+}
+tryIn.addEventListener("input", tryRender);
+
+buildScenarioButtons();
+select();
+tryRender();
+</script>
